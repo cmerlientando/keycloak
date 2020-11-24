@@ -85,7 +85,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
     public static final String ACCESS_TOKEN_EXPIRATION = "accessTokenExpiration";
     public static final String EXCHANGE_PROVIDER = "EXCHANGE_PROVIDER";
     private static final String BROKER_NONCE_PARAM = "BROKER_NONCE";
-    private static final Boolean USE_NONCE = StringUtils.equalsIgnoreCase(System.getenv("USE_NONCE"), "true");
+    private static final Boolean USE_NONCE = Boolean.valueOf(System.getenv("USE_NONCE"));
 
     public OIDCIdentityProvider(KeycloakSession session, OIDCIdentityProviderConfig config) {
         super(session, config);
