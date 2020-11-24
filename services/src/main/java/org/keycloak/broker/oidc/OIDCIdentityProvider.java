@@ -775,6 +775,8 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
             return;
         }
 
+        logger.info("Use nonce enabled: " + USE_NONCE);
+
         if (USE_NONCE) {
             String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
 
