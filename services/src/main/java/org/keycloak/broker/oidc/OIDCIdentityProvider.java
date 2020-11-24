@@ -17,6 +17,7 @@
 package org.keycloak.broker.oidc;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.commons.lang.StringUtils;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
@@ -84,6 +85,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
     public static final String ACCESS_TOKEN_EXPIRATION = "accessTokenExpiration";
     public static final String EXCHANGE_PROVIDER = "EXCHANGE_PROVIDER";
     private static final String BROKER_NONCE_PARAM = "BROKER_NONCE";
+    private static final Boolean USE_NONCE = StringUtils.equalsIgnoreCase(System.getenv("USE_NONCE"), "true");
 
     public OIDCIdentityProvider(KeycloakSession session, OIDCIdentityProviderConfig config) {
         super(session, config);
@@ -321,7 +323,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         @GET
         @Path("logout_response")
         public Response logoutResponse(@QueryParam("state") String state) {
-            if (state == null){
+            if (state == null) {
                 logger.error("no state parameter returned");
                 EventBuilder event = new EventBuilder(realm, session, clientConnection);
                 event.event(EventType.LOGOUT);
@@ -365,13 +367,13 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
 
         try {
             BrokeredIdentityContext identity = extractIdentity(tokenResponse, accessToken, idToken);
-            
+
             if (!identity.getId().equals(idToken.getSubject())) {
                 throw new IdentityBrokerException("Mismatch between the subject in the id_token and the subject from the user_info endpoint");
             }
 
             identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
-            
+
             if (getConfig().isStoreToken()) {
                 if (tokenResponse.getExpiresIn() > 0) {
                     long accessTokenExpiration = Time.currentTime() + tokenResponse.getExpiresIn();
@@ -393,8 +395,8 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         String id = idToken.getSubject();
         BrokeredIdentityContext identity = new BrokeredIdentityContext(id);
         String name = (String) idToken.getOtherClaims().get(IDToken.NAME);
-        String givenName = (String)idToken.getOtherClaims().get(IDToken.GIVEN_NAME);
-        String familyName = (String)idToken.getOtherClaims().get(IDToken.FAMILY_NAME);
+        String givenName = (String) idToken.getOtherClaims().get(IDToken.GIVEN_NAME);
+        String familyName = (String) idToken.getOtherClaims().get(IDToken.FAMILY_NAME);
         String preferredUsername = (String) idToken.getOtherClaims().get(getusernameClaimNameForIdToken());
         String email = (String) idToken.getOtherClaims().get(IDToken.EMAIL);
 
@@ -480,7 +482,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         }
         if (tokenResponse != null) identity.getContextData().put(FEDERATED_ACCESS_TOKEN_RESPONSE, tokenResponse);
         if (tokenResponse != null) processAccessTokenResponse(identity, tokenResponse);
-        
+
         return identity;
     }
 
@@ -505,7 +507,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
             }
             throw new IdentityBrokerException("Failed to invoke url [" + url + "]: " + msg);
         }
-        return  response;
+        return response;
     }
 
     private String verifyAccessToken(AccessTokenResponse tokenResponse) {
@@ -561,7 +563,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         if (!ignoreAudience && !token.hasAudience(getConfig().getClientId())) {
             throw new IdentityBrokerException("Wrong audience from token.");
         }
-        
+
         if (!ignoreAudience && (token.getIssuedFor() != null && !getConfig().getClientId().equals(token.getIssuedFor()))) {
             throw new IdentityBrokerException("Token issued for does not match client id");
         }
@@ -605,7 +607,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         String requestedIssuer = params.getFirst(OAuth2Constants.SUBJECT_ISSUER);
         if (requestedIssuer == null) requestedIssuer = issuer;
         if (requestedIssuer.equals(getConfig().getAlias())) return true;
-        
+
         String trustedIssuers = getConfig().getIssuer();
 
         if (trustedIssuers != null && trustedIssuers.length() > 0) {
@@ -617,7 +619,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -760,29 +762,31 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
 
         authenticationSession.setClientNote(BROKER_NONCE_PARAM, nonce);
         uriBuilder.queryParam(OIDCLoginProtocol.NONCE_PARAM, nonce);
-        
+
         return uriBuilder;
     }
 
     @Override
     public void preprocessFederatedIdentity(KeycloakSession session, RealmModel realm, BrokeredIdentityContext context) {
         AuthenticationSessionModel authenticationSession = session.getContext().getAuthenticationSession();
-        
+
         if (authenticationSession == null) {
             // no interacting with the brokered OP, likely doing token exchanges
             return;
         }
 
-        String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
+        if (USE_NONCE) {
+            String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
 
-        if (nonce == null) {
-            throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
-        }
+            if (nonce == null) {
+                throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
+            }
 
-        String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
+            String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
 
-        if (!nonce.equals(expectedNonce)) {
-            throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
+            if (!nonce.equals(expectedNonce)) {
+                throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
+            }
         }
     }
 }
