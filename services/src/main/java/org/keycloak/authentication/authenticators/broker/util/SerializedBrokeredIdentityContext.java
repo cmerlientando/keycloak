@@ -18,7 +18,9 @@
 package org.keycloak.authentication.authenticators.broker.util;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.jboss.logging.Logger;
 import org.keycloak.authentication.requiredactions.util.UpdateProfileContext;
+import org.keycloak.broker.oidc.AbstractOAuth2IdentityProvider;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.provider.IdentityProvider;
 import org.keycloak.broker.provider.IdentityProviderDataMarshaller;
@@ -45,6 +47,8 @@ import java.util.Map;
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
 public class SerializedBrokeredIdentityContext implements UpdateProfileContext {
+
+    protected static final Logger logger = Logger.getLogger(SerializedBrokeredIdentityContext.class);
 
     private String id;
     private String brokerUsername;
@@ -302,11 +306,17 @@ public class SerializedBrokeredIdentityContext implements UpdateProfileContext {
         IdentityProviderDataMarshaller serializer = context.getIdp().getMarshaller();
 
         for (Map.Entry<String, Object> entry : context.getContextData().entrySet()) {
-            Object value = entry.getValue();
-            String serializedValue = serializer.serialize(value);
+            try {
+                logger.info("Key: " + entry.getKey());
+                Object value = entry.getValue();
+                logger.info("Value: " + value);
+                String serializedValue = serializer.serialize(value);
 
-            ContextDataEntry ctxEntry = ContextDataEntry.create(value.getClass().getName(), serializedValue);
-            ctx.getContextData().put(entry.getKey(), ctxEntry);
+                ContextDataEntry ctxEntry = ContextDataEntry.create(value.getClass().getName(), serializedValue);
+                ctx.getContextData().put(entry.getKey(), ctxEntry);
+            } catch (RuntimeException e) {
+                logger.error("Error creting context entry", e);
+            }
         }
         return ctx;
     }
