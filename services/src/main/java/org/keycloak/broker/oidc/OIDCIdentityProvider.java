@@ -372,7 +372,9 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
                 throw new IdentityBrokerException("Mismatch between the subject in the id_token and the subject from the user_info endpoint");
             }
 
-            identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
+            if (USE_NONCE) {
+                identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
+            }
 
             if (getConfig().isStoreToken()) {
                 if (tokenResponse.getExpiresIn() > 0) {
@@ -760,8 +762,10 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
         String nonce = Base64Url.encode(KeycloakModelUtils.generateSecret(16));
         AuthenticationSessionModel authenticationSession = request.getAuthenticationSession();
 
-        authenticationSession.setClientNote(BROKER_NONCE_PARAM, nonce);
-        uriBuilder.queryParam(OIDCLoginProtocol.NONCE_PARAM, nonce);
+        if (USE_NONCE) {
+            authenticationSession.setClientNote(BROKER_NONCE_PARAM, nonce);
+            uriBuilder.queryParam(OIDCLoginProtocol.NONCE_PARAM, nonce);
+        }
 
         return uriBuilder;
     }
